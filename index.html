@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Educational Assistant</title>
+
+    <!-- Google AdSense Code -->
+    <script data-ad-client="pub-6222262764015954" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        h1 {
+            margin-top: 20px;
+        }
+        form, #response, #videoContainer {
+            width: 90%;
+            max-width: 500px;
+            margin: 20px auto;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        input[type="text"], input[type="file"], button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #videoContainer, #capture {
+            display: none;
+            margin-top: 10px;
+        }
+        #capture {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ask a Question</h1>
+
+    <!-- Question Form -->
+    <form id="questionForm">
+        <input type="text" id="questionInput" placeholder="Type your question here">
+        <button type="submit">Get Answer</button>
+    </form>
+
+    <!-- OCR Image Upload Form -->
+    <h2>Upload an Image (OCR)</h2>
+    <form id="ocrForm" enctype="multipart/form-data">
+        <input type="file" id="imageInput" accept="image/*">
+        <button type="submit">Extract Text</button>
+    </form>
+
+    <!-- Live Camera Option -->
+    <h2>Or Capture Live (OCR)</h2>
+    <button onclick="openCamera()">Open Camera</button>
+    <div id="videoContainer">
+        <video id="video" width="100%" autoplay></video>
+        <button id="capture">Capture Image</button>
+    </div>
+
+    <!-- Response Display -->
+    <div id="response"></div>
+
+    <script>
+        const backendUrl = "https://web-production-216a.up.railway.app";  // Replace with your actual Render backend URL
+
+        // Handle typed question submission
+        document.getElementById("questionForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const question = document.getElementById("questionInput").value;
+            const response = await fetch(`${backendUrl}/answer`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ question }),
+            });
+            const result = await response.json();
+            document.getElementById("response").innerText = result.answer;
+        });
+
+        // Handle image upload for OCR
+        document.getElementById("ocrForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const fileInput = document.getElementById("imageInput");
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            const response = await fetch(`${backendUrl}/ocr`, {
+                method: "POST",
+                body: formData,
+            });
+            const result = await response.json();
+            document.getElementById("response").innerText = result.text || result.error;
+        });
+
+        // Open camera and capture live image for OCR
+        async function openCamera() {
+            const videoContainer = document.getElementById("videoContainer");
+            const video = document.getElementById("video");
+            const captureButton = document.getElementById("capture");
+
+            videoContainer.style.display = "block";
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            }
+
+            captureButton.style.display = "inline";
+            captureButton.onclick = async () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext("2d").drawImage(video, 0, 0);
+
+                video.srcObject.getTracks().forEach(track => track.stop());
+                videoContainer.style.display = "none";
+
+                const blob = await new Promise(resolve => canvas.toBlob(resolve));
+                const formData = new FormData();
+                formData.append("file", blob, "capture.png");
+
+                const response = await fetch(`${backendUrl}/ocr`, {
+                    method: "POST",
+                    body: formData,
+                });
+                const result = await response.json();
+                document.getElementById("response").innerText = result.text || result.error;
+            };
+        }
+    </script>
+</body>
+</html>
